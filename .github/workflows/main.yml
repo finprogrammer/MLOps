@@ -1,66 +1,7 @@
-name: workflow
-
-on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'README.md'
-
-permissions:
-  id-token: write
-  contents: read
-
-jobs:
-  integration:
-    name: Continuous Integration
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Lint code
-        run: echo "Linting repository"
-
-      - name: Run unit tests
-        run: echo "Running unit tests"
-
-  build-and-push-ecr-image:
-    name: Continuous Delivery
-    needs: integration
-    runs-on: ubuntu-latest
-    env:
-      IMAGE_TAG: latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Configure AWS credentials for this job
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      # Login to ECR and get registry URL
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-
   Continuous-Deployment:
     needs: build-and-push-ecr-image
     runs-on: self-hosted
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,25 +21,36 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: latest
         run: |
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Run Docker Image to serve users
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: latest
         run: |
-          # stop & remove any existing container with the same name
+          # stop any existing container using this name/port
           docker rm -f againnewnameforretrynetworksecurity 2>/dev/null || true
-          # run on port 8080 to match Dockerfile's uvicorn port
           docker run -d --restart=always \
             -p 8080:8080 --ipc="host" --name againnewnameforretrynetworksecurity \
-            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e AWS_REGION=${{ secrets.AWS_REGION }} \
-            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
+            -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
+            -e AWS_REGION='${{ secrets.AWS_REGION }}' \
+            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Health check (wait up to 60s)
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health || curl -fsS http://127.0.0.1:8080/; then
+              echo "Service is up"; exit 0
+            fi
+            echo "Waiting for service... ($i)"; sleep 2
+          done
+          echo "Service did not become healthy"; 
+          echo "--- Container logs ---"
+          docker logs --tail 200 againnewnameforretrynetworksecurity || true
+          exit 1
 
       - name: Clean previous images and containers
+        if: always()
         run: docker system prune -f
