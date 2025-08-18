@@ -1,4 +1,4 @@
-  name: workflow
+name: workflow
 
 on:
   push:
@@ -34,7 +34,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Configure AWS credentials for this job
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -42,13 +41,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Login to ECR and get registry URL
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to Amazon ECR
-        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
@@ -57,7 +54,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-          
+
   Continuous-Deployment:
     needs: build-and-push-ecr-image
     runs-on: self-hosted
@@ -89,8 +86,9 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
-          # stop any existing container using this name/port
+          # stop existing container if present
           docker rm -f againnewnameforretrynetworksecurity 2>/dev/null || true
+          # run on 8080 to match Dockerfile
           docker run -d --restart=always \
             -p 8080:8080 --ipc="host" --name againnewnameforretrynetworksecurity \
             -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
@@ -101,12 +99,12 @@ jobs:
       - name: Health check (wait up to 60s)
         run: |
           for i in {1..30}; do
-            if curl -fsS http://localhost:8080/health || curl -fsS http://127.0.0.1:8080/; then
+            if curl -fsS http://localhost:8080/health || curl -fsS http://127.0.0.1:8080/health; then
               echo "Service is up"; exit 0
             fi
             echo "Waiting for service... ($i)"; sleep 2
           done
-          echo "Service did not become healthy"; 
+          echo "Service did not become healthy"
           echo "--- Container logs ---"
           docker logs --tail 200 againnewnameforretrynetworksecurity || true
           exit 1
