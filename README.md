@@ -1,4 +1,4 @@
-## Project 1: Intrusion Detection System (UNSW-NB15 Dataset)
+## Project 1: MLOps
 
 ### Key Features
 
