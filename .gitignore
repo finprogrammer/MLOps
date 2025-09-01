@@ -13,15 +13,12 @@ env/
 # Data & artifacts (keep local, don't commit)
 Artifacts/
 tbd/
-final_model/
 Network_Data/
 eda_output/
 prediction_output/
 logs/
 *.csv
 *.npy
-*.pkl
-*.pickle
 *.joblib
 *.h5
 *.pt
