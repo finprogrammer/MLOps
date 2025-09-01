@@ -88,12 +88,17 @@ jobs:
         run: |
           # stop existing container if present
           docker rm -f againnewnameforretrynetworksecurity 2>/dev/null || true
-          # run on 8080 to match Dockerfile
+
+          # run on 8080 to match Dockerfile and health check
           docker run -d --restart=always \
             -p 8080:8080 --ipc="host" --name againnewnameforretrynetworksecurity \
             -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
             -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
             -e AWS_REGION='${{ secrets.AWS_REGION }}' \
+            -e MONGODB_URL_KEY='${{ secrets.MONGODB_URL_KEY }}' \
+            -e MLFLOW_TRACKING_URI='${{ secrets.MLFLOW_TRACKING_URI }}' \
+            -e MLFLOW_TRACKING_USERNAME='${{ secrets.MLFLOW_TRACKING_USERNAME }}' \
+            -e MLFLOW_TRACKING_PASSWORD='${{ secrets.MLFLOW_TRACKING_PASSWORD }}' \
             $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Health check (wait up to 60s)

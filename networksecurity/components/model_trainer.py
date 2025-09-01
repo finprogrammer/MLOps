@@ -27,10 +27,21 @@ from networksecurity.utils.ml_utils.metric.classification_metric import (
 )
 
 
-os.environ["MLFLOW_TRACKING_URI"] = os.getenv("MLFLOW_TRACKING_URI")
-os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
-os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
+#os.environ["MLFLOW_TRACKING_URI"] = os.getenv("MLFLOW_TRACKING_URI")
+##os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
+#os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
+_mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
+_mlflow_user = os.getenv("MLFLOW_TRACKING_USERNAME")
+_mlflow_pass = os.getenv("MLFLOW_TRACKING_PASSWORD")
+
+
+if _mlflow_uri is not None:
+    os.environ["MLFLOW_TRACKING_URI"] = _mlflow_uri
+if _mlflow_user is not None:
+    os.environ["MLFLOW_TRACKING_USERNAME"] = _mlflow_user
+if _mlflow_pass is not None:
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = _mlflow_pass
 
 class ModelTrainer:
     def __init__(
