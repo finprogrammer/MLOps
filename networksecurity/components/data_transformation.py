@@ -88,6 +88,8 @@ class DataTransformation:
                 self.data_validation_artifact.valid_test_file_path
             )
 
+
+
             ## training dataframe
             input_feature_train_df = train_df.drop(columns=[TARGET_COLUMN], axis=1)
             target_feature_train_df = train_df[TARGET_COLUMN]
@@ -97,6 +99,26 @@ class DataTransformation:
             input_feature_test_df = test_df.drop(columns=[TARGET_COLUMN], axis=1)
             target_feature_test_df = test_df[TARGET_COLUMN]
             target_feature_test_df = target_feature_test_df.replace(-1, 0)
+
+
+            # --- SAVE RAW TEST CSV (features only / or include target if you prefer) ---
+            # Save next to your transformed .npy files, same folder
+            base_dir = os.path.dirname(self.data_transformation_config.transformed_test_file_path)
+            os.makedirs(base_dir, exist_ok=True)  # 👈 ensure folder exists
+
+            x_test_csv_path = os.path.join(base_dir, "x_test_raw.csv")
+            x_test_with_target_csv_path = os.path.join(base_dir, "x_test_with_target.csv")
+
+            # features only (use this for inference)
+            input_feature_test_df.to_csv(x_test_csv_path, index=False)
+            # features + target (handy for evaluation)
+            tmp = input_feature_test_df.copy()
+            tmp[TARGET_COLUMN] = target_feature_test_df
+            tmp.to_csv(x_test_with_target_csv_path, index=False)
+
+            logging.info(f"Saved X_test to: {x_test_csv_path}")
+            logging.info(f"Saved X_test + target to: {x_test_with_target_csv_path}")
+
 
             preprocessor = (
                 self.get_data_transformer_object()
@@ -240,25 +262,42 @@ class DataPreprocessor:
             logging.info("Starting transformation on input datasets...")
 
             train_df = self.load_data(self.validation_artifact.valid_train_file_path)
-            test_df = self.load_data(self.validation_artifact.valid_test_file_path)
+            test_df  = self.load_data(self.validation_artifact.valid_test_file_path)
 
             X_train = train_df.drop(columns=[TARGET_COLUMN])
             y_train = train_df[TARGET_COLUMN]
 
-            X_test = test_df.drop(columns=[TARGET_COLUMN])
-            y_test = test_df[TARGET_COLUMN]
+            X_test  = test_df.drop(columns=[TARGET_COLUMN])
+            y_test  = test_df[TARGET_COLUMN]
 
+            # === SAVE RAW TEST CSVs (the ones you want for inference) ===
+            base_dir = os.path.dirname(self.config.transformed_test_file_path)
+            os.makedirs(base_dir, exist_ok=True)
+
+            x_test_csv_path = os.path.join(base_dir, "x_test_raw.csv")
+            x_test_with_target_csv_path = os.path.join(base_dir, "x_test_with_target.csv")
+
+            # features only (use this file for /predict)
+            X_test.to_csv(x_test_csv_path, index=False)
+            # features + target (handy for manual evaluation)
+            tmp = X_test.copy()
+            tmp[TARGET_COLUMN] = y_test
+            tmp.to_csv(x_test_with_target_csv_path, index=False)
+
+            logging.info(f"Saved X_test to: {x_test_csv_path}")
+            logging.info(f"Saved X_test + target to: {x_test_with_target_csv_path}")
+            # ============================================================
+
+            # Continue with your existing transformation flow
             encoder = LabelEncoder()
             y_train_encoded = encoder.fit_transform(y_train)
-            y_test_encoded = encoder.transform(y_test)
-
+            y_test_encoded  = encoder.transform(y_test)
             save_object("final_model/label_encoder.pkl", encoder)
 
             transformer = self.construct_transformer(X_train)
-
             fitted_transformer = transformer.fit(X_train)
             X_train_processed = fitted_transformer.transform(X_train)
-            X_test_processed = fitted_transformer.transform(X_test)
+            X_test_processed  = fitted_transformer.transform(X_test)
 
             if hasattr(X_train_processed, "toarray"):
                 X_train_processed = X_train_processed.toarray()
@@ -266,10 +305,11 @@ class DataPreprocessor:
                 X_test_processed = X_test_processed.toarray()
 
             train_data = np.c_[X_train_processed, y_train_encoded.reshape(-1, 1)]
-            test_data = np.c_[X_test_processed, y_test_encoded.reshape(-1, 1)]
+            test_data  = np.c_[X_test_processed,  y_test_encoded.reshape(-1, 1)]
 
             save_numpy_array_data(self.config.transformed_train_file_path, train_data)
-            save_numpy_array_data(self.config.transformed_test_file_path, test_data)
+            save_numpy_array_data(self.config.transformed_test_file_path,  test_data)
+
             save_object(self.config.transformed_object_file_path, fitted_transformer)
             save_object("final_model/preprocessor.pkl", fitted_transformer)
 
