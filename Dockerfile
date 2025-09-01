@@ -21,7 +21,7 @@ COPY . /app
 EXPOSE 8080
 
 # If your FastAPI instance is named `app` in app/app.py:
-CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
 
 # If you actually run a top-level script instead, swap to:
 # CMD ["python", "app.py"]
