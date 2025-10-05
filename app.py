@@ -39,7 +39,6 @@ S3_PREPROC_URI = os.getenv(
     "s3://networktrial/artifact/09_01_2025_18_51_40/data_transformation/transformed_object/preprocessing.pkl",
 )
 
-# Where we’ll cache them locally
 LOCAL_MODEL_DIR = "final_model"
 LOCAL_MODEL_PATH = os.path.join(LOCAL_MODEL_DIR, "model.pkl")
 LOCAL_PREPROC_PATH = os.path.join(LOCAL_MODEL_DIR, "preprocessor.pkl")
@@ -88,10 +87,6 @@ def ensure_artifacts_available():
     download_from_s3(S3_MODEL_URI, LOCAL_MODEL_PATH)
 
 
-# -------------------------
-# App init
-# -------------------------
-# Make sure model files exist before serving
 try:
     ensure_artifacts_available()
 except Exception as e:
@@ -115,7 +110,7 @@ try:
 except Exception:
     logging.exception("Mongo init failed; continuing without DB.")
 
-app = FastAPI()
+app = FastAPI()#Creates the ASGI app object
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]

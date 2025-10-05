@@ -1,0 +1,248 @@
+# Use a supported Debian release (buster is EOL)
+FROM python:3.10-slim-bookworm
+
+# Helpful defaults
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Copy and install deps first for better layer caching
+COPY requirements.txt /app/
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install --no-cache-dir -r requirements.txt
+
+# Copy the app
+COPY . /app
+
+# Expose the port we’ll serve on
+EXPOSE 8080
+
+# If your FastAPI instance is named `app` in app/app.py:
+CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8080"]
+
+# If you actually run a top-level script instead, swap to:
+# CMD ["python", "app.py"]
+
+
+
+
+
+
+
+
+
+import sys
+import os
+import certifi
+from dotenv import load_dotenv
+import pymongo
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import Response
+from starlette.responses import RedirectResponse
+from uvicorn import run as app_run
+import pandas as pd
+
+from networksecurity.exception.exception import NetworkSecurityException
+from networksecurity.logging.logger import logging
+from networksecurity.pipeline.training_pipeline import TrainingPipeline
+from networksecurity.utils.main_utils.utils import load_object
+from networksecurity.utils.ml_utils.model.estimator import NetworkModel
+from networksecurity.constant.training_pipeline import (
+    DATA_INGESTION_COLLECTION_NAME,
+    DATA_INGESTION_DATABASE_NAME,
+)
+
+load_dotenv()
+
+ca = certifi.where()
+mongo_db_url = os.getenv("MONGODB_URL_KEY")
+print(mongo_db_url)
+
+client = pymongo.MongoClient(mongo_db_url, tlsCAFile=ca)
+
+database = client[DATA_INGESTION_DATABASE_NAME]
+collection = database[DATA_INGESTION_COLLECTION_NAME]
+
+if DATA_INGESTION_COLLECTION_NAME not in database.list_collection_names():
+    logging.warning(
+        f"Collection '{DATA_INGESTION_COLLECTION_NAME}' not found in DB '{DATA_INGESTION_DATABASE_NAME}'. Creating empty collection."
+    )
+    database.create_collection(DATA_INGESTION_COLLECTION_NAME)
+
+app = FastAPI()
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory="./templates")
+
+
+@app.get("/", tags=["authentication"])
+async def index():
+    return RedirectResponse(url="/docs")
+
+
+@app.get("/train")
+async def train_route():
+    try:
+        train_pipeline = TrainingPipeline()
+        train_pipeline.run_pipeline()
+        return Response("Training is successful")
+    except Exception as e:
+        raise NetworkSecurityException(e, sys)
+
+
+@app.post("/predict")
+async def predict_route(request: Request, file: UploadFile = File(...)):
+    try:
+        df = pd.read_csv(file.file)
+        preprocessor = load_object("final_model/preprocessor.pkl")
+        final_model = load_object("final_model/model.pkl")
+        network_model = NetworkModel(preprocessor=preprocessor, model=final_model)
+        y_pred = network_model.predict(df)
+        df["predicted_column"] = y_pred
+        df.to_csv("prediction_output/output.csv")
+        table_html = df.to_html(classes="table table-striped")
+        return templates.TemplateResponse(
+            "table.html", {"request": request, "table": table_html}
+        )
+    except Exception as e:
+        raise NetworkSecurityException(e, sys)
+
+
+if __name__ == "__main__":
+    app_run(app, host="0.0.0.0", port=8000)#dssfasaS
+
+
+
+
+
+
+
+name: workflow
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  integration:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint code
+        run: echo "Linting repository"
+
+      - name: Run unit tests
+        run: echo "Running unit tests"
+
+  build-and-push-ecr-image:
+    name: Continuous Delivery
+    needs: integration
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+  Continuous-Deployment:
+    needs: build-and-push-ecr-image
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull latest image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+        run: |
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Run Docker Image to serve users
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+        run: |
+          # stop existing container if present
+          docker rm -f againnewnameforretrynetworksecurity 2>/dev/null || true
+          # run on 8080 to match Dockerfile
+          docker run -d --restart=always \
+            -p 8080:8080 --ipc="host" --name againnewnameforretrynetworksecurity \
+            -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
+            -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
+            -e AWS_REGION='${{ secrets.AWS_REGION }}' \
+            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Health check (wait up to 60s)
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health || curl -fsS http://127.0.0.1:8080/health; then
+              echo "Service is up"; exit 0
+            fi
+            echo "Waiting for service... ($i)"; sleep 2
+          done
+          echo "Service did not become healthy"
+          echo "--- Container logs ---"
+          docker logs --tail 200 againnewnameforretrynetworksecurity || true
+          exit 1
+
+      - name: Clean previous images and containers
+        if: always()
+        run: docker system prune -f

@@ -46,8 +46,8 @@ if _mlflow_pass is not None:
 class ModelTrainer:
     def __init__(
         self,
-        model_trainer_config: ModelTrainerConfig,
-        data_transformation_artifact: DataTransformationArtifact,
+        model_trainer_config: ModelTrainerConfig,#where to save the trained model, thresholds, etc.
+        data_transformation_artifact: DataTransformationArtifact,#where to find transformed_train.npy, transformed_test.npy, and the preprocessor object.
     ):
         try:
             self.model_trainer_config = model_trainer_config
