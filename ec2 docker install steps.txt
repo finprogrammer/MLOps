@@ -1,0 +1,16 @@
+Docker Setup In EC2 commands to be Executed
+#optinal
+
+sudo apt-get update -y #refreshes the catalog (package metadata).
+
+sudo apt-get upgrade #patches the installed components (mutates state)
+
+#required
+
+curl -fsSL https://get.docker.com -o get-docker.sh #adds Docker Engine and enables its service (adds new capability)
+
+sudo sh get-docker.sh
+
+sudo usermod -aG docker ubuntu#gives your user the right to call Docker without sudo (changes ACLs)
+
+newgrp docker#(newgrp) applies the permission change to the current process.
