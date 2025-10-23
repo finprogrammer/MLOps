@@ -11,6 +11,6 @@ curl -fsSL https://get.docker.com -o get-docker.sh #adds Docker Engine and enabl
 
 sudo sh get-docker.sh
 
-sudo usermod -aG docker ubuntu#gives your user the right to call Docker without sudo (changes ACLs)
+sudo usermod -aG docker ubuntu #gives your user the right to call Docker without sudo (changes ACLs)
 
-newgrp docker#(newgrp) applies the permission change to the current process.
+newgrp docker #(newgrp) applies the permission change to the current process.
