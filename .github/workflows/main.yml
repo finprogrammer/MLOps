@@ -87,11 +87,11 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
           # stop existing container if present
-          docker rm -f againnewnameforretrynetworksecurity 2>/dev/null || true
+          docker rm -f armlops 2>/dev/null || true
 
           # run on 8080 to match Dockerfile and health check
           docker run -d --restart=always \
-            -p 8080:8080 --ipc="host" --name againnewnameforretrynetworksecurity \
+            -p 8080:8080 --ipc="host" --name armlops \
             -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
             -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
             -e AWS_REGION='${{ secrets.AWS_REGION }}' \
@@ -111,7 +111,7 @@ jobs:
           done
           echo "Service did not become healthy"
           echo "--- Container logs ---"
-          docker logs --tail 200 againnewnameforretrynetworksecurity || true
+          docker logs --tail 200 armlops || true
           exit 1
 
       - name: Clean previous images and containers

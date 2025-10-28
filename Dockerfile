@@ -1,4 +1,3 @@
-# Use a supported Debian release (buster is EOL)
 FROM python:3.10-slim-bookworm
 
 # Helpful defaults
@@ -15,7 +14,7 @@ RUN apt-get update \
  && pip install --no-cache-dir -r requirements.txt
 
 # Copy the app
-COPY . /app
+COPY . /app 
 
 # Expose the port we’ll serve on
 EXPOSE 8080

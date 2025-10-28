@@ -16,7 +16,7 @@ def npy_to_csv(npy_path: str, csv_path: str, add_headers: bool = True) -> None:
         df = pd.DataFrame(arr)
 
     df.to_csv(csv_path, index=False)
-    print(f"✅ Saved {csv_path} with shape {arr.shape}")
+    print(f"Saved {csv_path} with shape {arr.shape}")
 
 
 if __name__ == "__main__":
@@ -27,5 +27,4 @@ if __name__ == "__main__":
     npy_file = sys.argv[1]
     csv_file = sys.argv[2]
 
-    # run conversion
     npy_to_csv(npy_file, csv_file, add_headers=True)

@@ -13,7 +13,6 @@ from starlette.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 import pandas as pd
 
-# Project imports
 from networksecurity.exception.exception import NetworkSecurityException
 from networksecurity.logging.logger import logging
 from networksecurity.pipeline.training_pipeline import TrainingPipeline
@@ -24,12 +23,8 @@ from networksecurity.constant.training_pipeline import (
     DATA_INGESTION_DATABASE_NAME,
 )
 
-# -------------------------
-# Config / constants
-# -------------------------
-load_dotenv()  # harmless in container; main config from env
+load_dotenv()
 
-# S3 URIs provided by you (can also be supplied via env if you prefer)
 S3_MODEL_URI = os.getenv(
     "S3_MODEL_URI",
     "s3://networktrial/artifact/09_01_2025_18_51_40/model_trainer/trained_model/model.pkl",
@@ -43,13 +38,9 @@ LOCAL_MODEL_DIR = "final_model"
 LOCAL_MODEL_PATH = os.path.join(LOCAL_MODEL_DIR, "model.pkl")
 LOCAL_PREPROC_PATH = os.path.join(LOCAL_MODEL_DIR, "preprocessor.pkl")
 
-# Optional: Mongo (won’t block startup if it fails)
 MONGO_DB_URL = os.getenv("MONGODB_URL_KEY")
 ca = certifi.where()
 
-# -------------------------
-# Helpers
-# -------------------------
 def parse_s3_uri(s3_uri: str):
     """Return (bucket, key) from s3://bucket/key uri."""
     u = urlparse(s3_uri)
@@ -59,13 +50,10 @@ def parse_s3_uri(s3_uri: str):
     key = u.path.lstrip("/")
     return bucket, key
 
-
 def download_from_s3(s3_uri: str, local_path: str):
-    """Download a single object from S3 to local_path (idempotent)."""
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     bucket, key = parse_s3_uri(s3_uri)
 
-    # Skip if already present
     if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
         logging.info(f"[S3] Using cached file: {local_path}")
         return
@@ -80,20 +68,15 @@ def download_from_s3(s3_uri: str, local_path: str):
             f"Failed to download {s3_uri}: {e}", sys
         ) from e
 
-
 def ensure_artifacts_available():
-    """Ensure preprocessor + model are available locally (download from S3 if missing)."""
     download_from_s3(S3_PREPROC_URI, LOCAL_PREPROC_PATH)
     download_from_s3(S3_MODEL_URI, LOCAL_MODEL_PATH)
-
 
 try:
     ensure_artifacts_available()
 except Exception as e:
-    # We still start the app so /health shows a clear signal, but /predict will fail until fixed
     logging.exception("Failed to prepare artifacts from S3.")
 
-# Optional Mongo wiring (won’t crash the app if fails)
 try:
     if MONGO_DB_URL:
         import pymongo
@@ -110,21 +93,16 @@ try:
 except Exception:
     logging.exception("Mongo init failed; continuing without DB.")
 
-app = FastAPI()#Creates the ASGI app object
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
 )
 templates = Jinja2Templates(directory="./app/templates")
 
-
-# -------------------------
-# Routes
-# -------------------------
 @app.get("/", tags=["misc"])
 async def index():
     return RedirectResponse(url="/docs")
-
 
 @app.get("/health", tags=["misc"])
 async def health():
@@ -138,10 +116,8 @@ async def health():
         }
     )
 
-
 @app.get("/train", tags=["pipeline"])
 async def train_route():
-    """Left intact; may fail if Mongo isn’t reachable. Doesn’t affect prediction artifacts."""
     try:
         tp = TrainingPipeline()
         tp.run_pipeline()
@@ -149,11 +125,9 @@ async def train_route():
     except Exception as e:
         raise NetworkSecurityException(e, sys)
 
-
 @app.post("/predict", tags=["inference"])
 async def predict_route(request: Request, file: UploadFile = File(...)):
     try:
-        # Defensive: ensure artifacts exist (in case container restarted with empty volume)
         ensure_artifacts_available()
 
         df = pd.read_csv(file.file)
@@ -174,8 +148,6 @@ async def predict_route(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         raise NetworkSecurityException(e, sys)
 
-
 if __name__ == "__main__":
     import uvicorn
-    # IMPORTANT: 0.0.0.0:8080 (matches Docker + GitHub Actions health check)
     uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -16,7 +16,7 @@ def get_requirements() -> List[str]:
     return requirement_lst
 
 setup(
-    name="NetworkSecurity",
+    name="MLOPS",
     version="0.0.1",
     author="Arnav Doke",
     author_email="arnavdoke43@gmail.com",
